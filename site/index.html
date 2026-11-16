@@ -2,66 +2,86 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WoW Forever AH Indicator</title>
-<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1525" media="(prefers-color-scheme: dark)">
+<title>Auction Ledger</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23c8961e'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23fff' stroke-opacity='.55' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preload" href="fonts/hanken-grotesk.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main class="viz-root">
-  <header>
-    <h1>WoW Forever AH Indicator</h1>
-    <p id="status" class="muted">Loading…</p>
-  </header>
-  <div id="banners"></div>
-  <nav class="tabs" role="tablist">
-    <button role="tab" data-tab="signals" aria-selected="true">Signals</button>
-    <button role="tab" data-tab="market">Market</button>
-    <button role="tab" data-tab="events">Events</button>
-    <button role="tab" data-tab="learning">Learning</button>
-    <button role="tab" data-tab="help">How it works</button>
-  </nav>
-  <section id="signals">
-    <div class="filters">
-      <button class="chip" data-dir="all" aria-pressed="true">All</button>
-      <button class="chip" data-dir="buy" aria-pressed="false">Buy</button>
-      <button class="chip" data-dir="sell" aria-pressed="false">Sell / avoid</button>
+<div class="app viz-root">
+  <header class="top">
+    <div>
+      <h1>Auction Ledger</h1>
+      <p id="where" class="quiet"></p>
     </div>
-    <div id="signal-list"></div>
-  </section>
-  <section id="market" hidden>
-    <input id="search" type="search" placeholder="Search item" aria-label="Search item">
-    <div id="market-list"></div>
-  </section>
-  <section id="events" hidden><div id="event-list"></div></section>
-  <section id="learning" hidden><div id="learning-body"></div></section>
-  <section id="help" hidden>
-    <h2>Reading a signal</h2>
-    <dl>
-      <dt>Score (−100 to +100)</dt><dd>Positive means buy, negative means sell or avoid. An email is sent when the absolute score reaches the alert threshold on an item that really trades.</dd>
-      <dt>Price</dt><dd>Average price of the cheapest 15% of listed units. It ignores a single mispriced listing.</dd>
-      <dt>Normal price</dt><dd>The item's own average price over the last 72 hourly snapshots.</dd>
-      <dt>Net margin</dt><dd>Gain if you buy at today's price and sell at the normal price, after the auction house cut.</dd>
-      <dt>Days of supply</dt><dd>Listed quantity divided by estimated daily sales. Under 1 day means the shelf is nearly empty.</dd>
-      <dt>Expected 24h return</dt><dd>The learned model's forecast of the net return from buying now and selling 24 hours later, after the auction house cut. Shown once the model has data.</dd>
-      <dt>Daily volatility</dt><dd>Typical size of one day's price move for this item. A forecast smaller than this is inside the noise.</dd>
-      <dt>Reversion half-life</dt><dd>Hours this item's price has typically taken to close half of a gap to its normal level.</dd>
-      <dt>Max units</dt><dd>The smaller of the units listed within 10% of the floor and a quarter of estimated daily sales. Buying more than this makes you the market.</dd>
-    </dl>
-    <h2>Signal names</h2>
-    <dl>
-      <dt>Dip</dt><dd>Price at least 2 standard deviations below normal while supply is not flooding, with enough net margin.</dd>
-      <dt>Squeeze</dt><dd>Listed quantity far below normal while price is rising.</dd>
-      <dt>Spike</dt><dd>Price at least 2 standard deviations above normal. Take profit if you hold it.</dd>
-      <dt>Flood</dt><dd>Listed quantity far above normal while price is falling. Avoid.</dd>
-      <dt>Cheap vs alternatives</dt><dd>Price unusually low compared with substitute items (same slot, type and level band).</dd>
-      <dt>Event</dt><dd>A scheduled event that raises demand for this item category is inside its lead window.</dd>
-    </dl>
-    <p class="muted">Sales are estimated from listings that disappear between hourly snapshots, so they are a lower bound. Weights and thresholds are starting assumptions until enough history exists to test them.</p>
-  </section>
-  <footer class="muted">Data from Blizzard's Game Data API, collected hourly. Not affiliated with Blizzard.</footer>
-<div id="tip" class="tip" hidden></div>
-</main>
+    <p id="fresh" class="fresh"></p>
+  </header>
+
+  <section id="today" class="today" aria-live="polite"></section>
+  <div id="notices"></div>
+
+  <main>
+    <section id="calls" class="view">
+      <div class="seg" role="group" aria-label="Show">
+        <button data-dir="all" aria-pressed="true">All</button>
+        <button data-dir="buy" aria-pressed="false">Buy</button>
+        <button data-dir="sell" aria-pressed="false">Sell or avoid</button>
+      </div>
+      <div id="call-list"></div>
+    </section>
+
+    <section id="market" class="view" hidden>
+      <input id="search" type="search" placeholder="Find an item" aria-label="Find an item">
+      <div class="seg scroll" role="group" aria-label="Sort by">
+        <button data-sort="traded" aria-pressed="true">Most traded</button>
+        <button data-sort="up" aria-pressed="false">Rising</button>
+        <button data-sort="down" aria-pressed="false">Falling</button>
+        <button data-sort="cheap" aria-pressed="false">Cheapest vs normal</button>
+      </div>
+      <div id="market-list"></div>
+    </section>
+
+    <section id="calendar" class="view" hidden><div id="event-list"></div></section>
+    <section id="learning" class="view" hidden><div id="learning-body"></div></section>
+
+    <section id="guide" class="view" hidden>
+      <h2>How to read a call</h2>
+      <p class="lede">Each call says what to do, how many units the market can absorb, and what the price has to do for it to pay.</p>
+      <dl class="gloss">
+        <dt>Strength</dt><dd>Lean, solid or strong. It comes from a score between −100 and +100. Strong calls (60 or more) are the ones emailed to you.</dd>
+        <dt>Price</dt><dd>The average price of the cheapest 15% of units on sale. One mispriced listing does not move it.</dd>
+        <dt>Normal price</dt><dd>The item's own average over the last 72 hours.</dd>
+        <dt>After the cut</dt><dd>Your gain if you buy now and sell at the normal price, once the auction house has taken its 5%.</dd>
+        <dt>Buy up to</dt><dd>The smaller of two numbers: units listed within 10% of the cheapest, and a quarter of a day's estimated sales. Past that, you are the market.</dd>
+        <dt>Days of cover</dt><dd>Units on sale divided by units sold per day. Under one day, the shelf is nearly empty.</dd>
+        <dt>24 hour forecast</dt><dd>What the learning model expects from buying now and selling a day later, after the cut. Compare it with the item's usual daily swing: a forecast smaller than the swing is noise.</dd>
+        <dt>Half-life</dt><dd>How many hours this item has usually taken to close half of a gap to its normal price.</dd>
+      </dl>
+      <h2>Why a call appears</h2>
+      <dl class="gloss">
+        <dt>Dip</dt><dd>Price far below normal while supply is steady.</dd>
+        <dt>Squeeze</dt><dd>Units on sale far below normal while price climbs.</dd>
+        <dt>Spike</dt><dd>Price far above normal. A reason to sell what you hold.</dd>
+        <dt>Flood</dt><dd>Listings piling up while price falls. A reason to stay out.</dd>
+        <dt>Cheap vs similar items</dt><dd>Unusually cheap next to items that do the same job.</dd>
+        <dt>Event</dt><dd>A scheduled event that lifts demand is coming.</dd>
+      </dl>
+      <p class="quiet">Sales are estimated from listings that vanish between hourly snapshots, so they run low. Prices come from Blizzard's Game Data API. Not affiliated with Blizzard.</p>
+    </section>
+  </main>
+
+  <nav class="nav" aria-label="Sections">
+    <button data-view="calls" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 18l5-6 4 3 7-9"/><path d="M15 6h5v5"/></svg>Calls</button>
+    <button data-view="market"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Market</button>
+    <button data-view="calendar"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="14" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Calendar</button>
+    <button data-view="learning"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Learning</button>
+    <button data-view="guide"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.8 9.5a2.3 2.3 0 1 1 3.4 2c-.8.5-1.2 1-1.2 2M12 16.6v.1"/></svg>Guide</button>
+  </nav>
+  <div id="tip" class="tip" hidden></div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>
