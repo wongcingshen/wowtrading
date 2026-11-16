@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from . import alerts, indicator, items as itemcache, learner, snapshot
+from . import alerts, backtest, indicator, items as itemcache, learner, snapshot
 from .blizzard import Blizzard, fetch_house, list_houses, ruleset_of
 
 
@@ -105,7 +105,8 @@ def main(root=Path("."), api=None, now=None):
     agg = aggs[selected]
     icache_p = root / "data/items.json"
     icache = itemcache.load(icache_p)
-    order = agg.assign(v=agg["qty"] * agg["p15"]).sort_values("v", ascending=False)["item"].tolist()
+    watch = [int(i) for i in cfg.get("watchlist") or []]
+    order = watch + agg.assign(v=agg["qty"] * agg["p15"]).sort_values("v", ascending=False)["item"].tolist()
     ns = [n.format(region=region) for n in cfg["item_namespaces"]]
     n_new = itemcache.update(api, icache, order, ns, cfg["max_item_lookups_per_run"])
     if n_new:
@@ -116,6 +117,11 @@ def main(root=Path("."), api=None, now=None):
     # pass 1 builds the component history; the learner absorbs newly matured outcomes;
     # pass 2 scores the market with the updated weights.
     _, wide, _ = indicator.compute(hist, icache, cfg, events, subs, now)
+    bt = backtest.run(wide, cfg, watch)
+    for k, v in list(bt["watch"].items()):
+        bt["watch"][k] = {"name": (icache.get(k) or {}).get("n") or f"Item #{k}", **v}
+    for tr in bt["recent"]:
+        tr["name"] = (icache.get(str(tr["id"])) or {}).get("n") or f"Item #{tr['id']}"
     mstate = learner.load(state_dir / "model.json")
     n_learned = learner.update(mstate, wide, cfg)
     (state_dir / "model.json").write_text(json.dumps(mstate))
@@ -157,7 +163,8 @@ def main(root=Path("."), api=None, now=None):
             "items_tracked": int(len(live)), "alert_threshold": cfg["alerts"]["score_threshold"]}
     house_check = None
     if hstate["ambiguous"]:
-        ref = agg.sort_values("qty", ascending=False).head(6)["item"].tolist()
+        v = agg[agg["p15"] >= 100].assign(v=lambda d: d["qty"] * d["p15"]).sort_values("v", ascending=False)
+        ref = (watch + [i for i in v["item"].tolist() if i not in watch])[:6]
         house_check = {"candidates": hstate["candidates"], "samples": [
             {"name": name(i), "id": int(i),
              "floor": {str(h): _num(a.set_index("item")["min"].get(i)) for h, a in aggs.items()}} for i in ref]}
@@ -166,11 +173,14 @@ def main(root=Path("."), api=None, now=None):
             "days": int((pd.Timestamp(str(e["date"]), tz="UTC") - today).days),
             "lead_days": e.get("lead_days", 14), "source": e.get("source")} for e in events]
     log = learner.log_signals(state_dir / "signal_log.json", signals, wide["P"], cfg, now)
-    out = {"meta": meta, "signals": signals, "market": market, "events": evs, "house_check": house_check,
+    watching = [row(i, live.loc[i], True) for i in watch if i in live.index]
+    out = {"meta": meta, "signals": signals, "market": market, "watch": watching, "backtest": bt, "events": evs, "house_check": house_check,
            "model": model, "track": learner.track_record(log)}
     (root / "site/data").mkdir(parents=True, exist_ok=True)
     (root / "site/data/latest.json").write_text(json.dumps(out, separators=(",", ":")))
 
+    if os.environ.get("TEST_EMAIL") == "true":
+        print("test email:", alerts.send_test(watching, meta))
     majors = alerts.pick_majors(signals, cfg, info["n_snapshots"], state_dir / "alerts.json", now)
     print(alerts.send(majors, meta))
     return out

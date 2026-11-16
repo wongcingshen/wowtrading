@@ -174,6 +174,8 @@ function render() {
   let mk = DATA.market.filter(i => !q || i.name.toLowerCase().includes(q));
   const by = { up: (a, b) => (b.chg24 ?? -9) - (a.chg24 ?? -9), down: (a, b) => (a.chg24 ?? 9) - (b.chg24 ?? 9), cheap: (a, b) => (a.z_price ?? 9) - (b.z_price ?? 9) }[sortBy];
   if (by) mk = [...mk].sort(by);
+  const wl = (DATA.watch || []).filter(i => !q || i.name.toLowerCase().includes(q));
+  $('#watch-list').innerHTML = wl.length ? `<h2 class="sect">Watching</h2>` + wl.map(i => mrow(i, 'w' + i.id)).join('') + `<h2 class="sect">Everything else</h2>` : '';
   $('#market-list').innerHTML = mk.length ? mk.slice(0, 80).map(i => mrow(i, 'm' + i.id)).join('') : `<div class="empty"><b>No item called "${esc(q)}"</b>Only the 150 most traded items are listed here.</div>`;
 
   $('#event-list').innerHTML = DATA.events.length ? DATA.events.map(e => {
@@ -206,10 +208,25 @@ function learning() {
       <svg viewBox="0 0 100 18" preserveAspectRatio="none" style="width:100%;height:22px;margin-top:6px" role="img" aria-label="${LABEL[k]}: ${(md.used[k] ?? 0).toFixed(2)} now, ${md.prior[k].toFixed(2)} at the start">
       <g transform="translate(0,1)">${bar(md.used[k] ?? 0, 'var(--series-1)')}</g><g transform="translate(0,10)">${bar(md.prior[k], 'var(--ghost)')}</g>
       <line x1="50" x2="50" y1="0" y2="18" stroke="var(--axis)" stroke-width=".4"/></svg></div>`).join('')}
+    ${backtestHtml()}
     <h2>Did past calls pay?</h2>
     <p class="lede">Every call is logged when it appears and checked 24 and 72 hours later. Buys count as paid when they made money after the cut. Sells count when the price then fell.</p>
     <table class="track"><tr><th>Call</th><th>Made</th><th>After 24 hours</th><th>After 72 hours</th></tr>
     ${tr.map(r => `<tr><td>${name[r.bucket]} ${r.dir}</td><td>${r.signals}</td><td>${rr(r.r24, r.dir)}</td><td>${rr(r.r72, r.dir)}</td></tr>`).join('')}</table>`;
+}
+
+function backtestHtml() {
+  const b = DATA.backtest;
+  if (!b) return '';
+  const days = (b.hours / 24).toFixed(b.hours < 48 ? 1 : 0), a = b.all;
+  const line = (label, st) => `<tr><td>${label}</td><td>${st.n || 0}</td><td>${st.n ? st.wins + ' of ' + st.n : '–'}</td><td>${st.n ? pct(st.mean, 1) : '–'}</td><td>${st.n ? pct(st.worst, 0) : '–'}</td></tr>`;
+  const head = `<h2>Would it have made money?</h2>
+    <p class="lede">A replay of the ${days} days of prices recorded so far. It buys when the score reaches ${b.entry_score}, sells when the price is back to normal or after ${b.max_hold_hours} hours, and takes off the auction house cut. It uses the starting weights, so nothing learned later leaks into the past.</p>`;
+  if (!a.n) return head + `<div class="empty"><b>No finished trades yet</b>${b.hours < 96 ? 'The replay needs about four days of history: one to learn each item\'s normal price, and up to three to close a trade.' : 'No score reached ' + b.entry_score + ' in this period.'}${b.open ? ' ' + b.open + ' trades are still open.' : ''}</div>`;
+  return head + `<table class="track"><tr><th>Trades</th><th>Count</th><th>Paid</th><th>Average</th><th>Worst</th></tr>
+    ${line('All', a)}${line('Solid, 45 to 60', b.solid)}${line('Strong, 60 and up', b.strong)}
+    ${Object.values(b.watch || {}).map(w => line(esc(w.name), w)).join('')}</table>
+    <p class="read">Buying any item at any hour and selling ${b.max_hold_hours} hours later returned ${pct(b.benchmark_mean, 1)} on average. The calls have to beat that to be worth anything.${b.open ? ' ' + b.open + ' trades are still open and not counted.' : ''}</p>`;
 }
 
 document.addEventListener('click', e => {

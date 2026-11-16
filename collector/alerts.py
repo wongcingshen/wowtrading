@@ -68,3 +68,19 @@ def send(majors, meta):
                       json={"from": os.environ.get("ALERT_FROM", "WoW AH Indicator <onboarding@resend.dev>"),
                             "to": [to], "subject": subject, "html": html})
     return f"email status {r.status_code}: {r.text[:200]}"
+
+
+def send_test(watching, meta):
+    """Sends one plain test message so the email settings can be checked."""
+    key, to = os.environ.get("RESEND_API_KEY"), os.environ.get("ALERT_EMAIL")
+    if not key or not to:
+        return "RESEND_API_KEY or ALERT_EMAIL is missing"
+    rows = "".join(f"<tr><td>{s['name']}</td><td>{gold(s['price'])}</td><td>{s['qty']}</td></tr>" for s in watching)
+    html = (f"<p>Test message from the WoW Forever auction indicator. Email alerts are set up correctly.</p>"
+            f"<p>{meta['faction']} house {meta['house']} ({meta['region'].upper()}), snapshot {meta['snapshot']}.</p>"
+            "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-family:sans-serif;font-size:14px'>"
+            "<tr><th>Watchlist item</th><th>Price now</th><th>Units on sale</th></tr>" + rows + "</table>")
+    r = requests.post("https://api.resend.com/emails", timeout=30, headers={"Authorization": f"Bearer {key}"},
+                      json={"from": os.environ.get("ALERT_FROM", "WoW AH Indicator <onboarding@resend.dev>"),
+                            "to": [to], "subject": "WoW AH indicator: test alert", "html": html})
+    return f"status {r.status_code}: {r.text[:200]}"

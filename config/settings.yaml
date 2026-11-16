@@ -4,6 +4,14 @@ ruleset_id: 1         # 1 PvP, 2 Normal, 3 Roleplay, 15 Roleplay PvP
 faction: Alliance     # Alliance | Horde | Blackwater
 house_id: null        # leave null to auto-detect; set a number to force one auction house
 
+# ---- Watchlist: items always shown at the top of Market and in the backtest -----
+watchlist: [3819, 3858, 2772]   # Wintersbite, Mithril Ore, Iron Ore
+
+# ---- Backtest (replays the recorded history with the starting weights) ----------
+backtest:
+  entry_score: 45       # buy when the score is at least this
+  max_hold_hours: 72    # sell after this long if the target was not reached
+
 # ---- Costs -----------------------------------------------------------------
 ah_cut: 0.05          # share of the sale price the auction house keeps
 
@@ -55,4 +63,4 @@ alerts:
 
 # ---- Item name lookups -----------------------------------------------------
 item_namespaces: ["static-forever-{region}", "static-classic1x-{region}", "static-{region}"]
-max_item_lookups_per_run: 400
+max_item_lookups_per_run: 1500

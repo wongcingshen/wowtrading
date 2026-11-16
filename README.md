@@ -31,6 +31,12 @@ with the starting weights in proportion to accumulated evidence. Every signal sh
 also logged and checked 24 and 72 hours later (`data/state/signal_log.json`); the
 dashboard's Learning tab shows both.
 
+## Backtest
+
+`collector/backtest.py` replays the recorded history every hour with the starting weights
+(buy at score >= 45, sell at the normal price or after 72 hours, net of the cut) and
+compares it with buying blindly. Results are on the dashboard's Learning tab.
+
 ## Tuning
 
 - `config/settings.yaml`: market selection, weights, thresholds, alert level.

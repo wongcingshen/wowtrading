@@ -166,3 +166,5 @@ svg text{font:11px "Hanken Grotesk",system-ui,sans-serif;fill:var(--ink-3)}
 @keyframes open{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.more{animation:none}}
 @media (min-width:600px){.app{padding-top:32px}h1{font-size:34px}.today h2{font-size:32px}}
+h2.sect{font-size:17px;margin:18px 0 8px;color:var(--ink-2)}
+#watch-list h2.sect:first-child{margin-top:4px}

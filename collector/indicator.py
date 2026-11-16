@@ -187,6 +187,6 @@ def compute(hist, items, cfg, events, sub_groups, now, weights=None, model_beta=
     # units you could buy without becoming the market: capped by cheap depth and a quarter of daily sales
     t["max_units"] = np.floor(np.minimum(t["depth10"], (t["sold24"] * 0.25).fillna(t["depth10"] * 0.25)))
 
-    wide = {"P": P, "Q": Q, "L": L, "comps": comps, "valid": valid}
+    wide = {"P": P, "Q": Q, "L": L, "N": np.exp(mean), "comps": comps, "valid": valid}
     info = {"n_snapshots": n_snap, "hours_span": len(idx), "last": last, "has_sales": bool(has_sales)}
     return t, wide, info
