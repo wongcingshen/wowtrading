@@ -41,3 +41,7 @@ table.mk{width:100%;border-collapse:collapse;background:var(--surface-1);border:
 dl{margin:0}dt{font-weight:600;margin-top:8px}dd{margin:0;color:var(--text-secondary)}
 footer{margin-top:28px}.empty{padding:26px 10px;text-align:center;color:var(--muted)}
 .up{color:var(--good)}.down{color:var(--crit)}
+table.t{width:100%;border-collapse:collapse;background:var(--surface-1);border:1px solid var(--border);border-radius:10px;font-size:13px;margin-top:6px}
+table.t th,table.t td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+table.t th{color:var(--muted);font-weight:600;font-size:12px}table.t td:first-child,table.t th:first-child{text-align:left}
+.note{color:var(--text-secondary);font-size:13px;margin:6px 0 0}

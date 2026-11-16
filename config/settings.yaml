@@ -20,6 +20,19 @@ weights:
   momentum: 0.15      # price rising, counted only while supply is contracting
   event: 0.15         # scheduled event ahead that raises demand for the item
   alternatives: 0.10  # cheap relative to substitute items
+  cover: 0.10         # days of cover (listed units / daily sales) below normal; the stocks-to-use idea from commodity markets
+  trend: 0.00         # plain trend-following in all regimes; starts at zero and earns weight only if the data supports it
+
+# ---- Continuous learning -----------------------------------------------------
+# Each hour, observations that are `horizon_hours` old are scored with what really
+# happened (net return after the AH cut) and fed to the model. Learned weights are
+# blended with the starting weights above: share learned = n / (n + prior_strength).
+learning:
+  enabled: true
+  horizon_hours: 24       # holding period the model is rewarded on
+  half_life_days: 21      # an observation this old counts half as much as a new one
+  prior_strength: 150000  # item-hours of evidence at which learned and starting weights count equally
+  ridge: 0.001            # regularisation: pulls weak, noisy effects toward zero
 
 # ---- Named signal thresholds -----------------------------------------------
 thresholds:

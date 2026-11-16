@@ -50,6 +50,7 @@ function detail(it) {
     <div class="kv">
       <div>Floor price<b>${gold(it.floor)}</b></div><div>Price vs normal<b>${num(it.z_price, 1)} σ</b></div><div>Supply vs normal<b>${num(it.z_supply, 1)} σ</b></div>
       <div>Listed units<b>${num(it.qty)}</b></div><div>Est. sold / day<b>${num(it.sold24)}</b></div><div>Max units<b>${num(it.max_units)}</b></div>
+      <div>Expected 24h return<b>${pct(it.exp_ret, 1)}</b></div><div>Daily volatility<b>${it.vol == null ? '–' : (it.vol * 100).toFixed(1) + '%'}</b></div><div>Reversion half-life<b>${it.half_life == null ? '–' : num(it.half_life) + ' h'}</b></div>
       ${it.alt_qty != null ? `<div>Substitute units<b>${num(it.alt_qty)}</b></div>` : ''}
     </div>
     ${s ? `<h3>Price, last 72 hours</h3>${chart(s.p, s.t0, 'gold', 'var(--series-1)', it.normal, 'normal ' + gold(it.normal))}
@@ -97,13 +98,33 @@ function render() {
     <div class="row1"><span class="name">${esc(e.name)}</span><span class="score">${e.days >= 0 ? 'in ' + e.days + ' d' : Math.abs(e.days) + ' d ago'}</span></div>
     <div class="sub">${e.date} · accumulation window starts ${e.lead_days} days before${e.source ? ' · ' + esc(e.source) : ''}</div></button></div>`).join('')
     : '<div class="empty">No events configured.</div>';
+  renderLearning();
+}
+
+const LABEL = { reversion: 'Price below normal', supply: 'Supply below normal', momentum: 'Rising price while supply contracts', trend: 'Trend-following', cover: 'Low days of cover', event: 'Event ahead', alternatives: 'Cheap vs alternatives' };
+function renderLearning() {
+  const md = DATA.model, tr = DATA.track || [];
+  if (!md) { $('#learning-body').innerHTML = '<div class="empty">No model data yet.</div>'; return; }
+  const w = k => (md.used[k] ?? 0).toFixed(2), f = (o, k) => o ? o[k].toFixed(2) : '–';
+  const rr = r => r.n ? `${Math.round(r.hit * 100)}% · ${pct(r.mean, 1)}` : '–';
+  $('#learning-body').innerHTML = `
+    <h2>Model weights</h2>
+    <p class="note">${Math.round(md.alpha * 100)}% learned from outcomes, ${Math.round((1 - md.alpha) * 100)}% starting assumptions. Based on ${num(md.n_eff)} item-hours of evidence, each scored on the net return ${md.horizon_hours} hours later. Evidence older than ${md.half_life_days} days counts half.</p>
+    <div class="bar"><i style="width:${md.alpha * 100}%"></i></div>
+    <table class="t"><tr><th>Component</th><th>Start</th><th>Learned</th><th>In use</th></tr>
+    ${Object.keys(md.prior).map(k => `<tr><td>${LABEL[k] || k}</td><td>${md.prior[k].toFixed(2)}</td><td>${f(md.learned, k)}</td><td><b>${w(k)}</b></td></tr>`).join('')}</table>
+    <p class="note">A negative learned weight means that component has predicted losses, and the score now counts it against an item.</p>
+    <h2>Track record of signals shown</h2>
+    <p class="note">Every signal with an absolute score of 30 or more is logged when it appears, then checked 24 and 72 hours later. Buy: share with a positive net return after the auction house cut, and the average net return. Sell: share where the price fell, and the average price change.</p>
+    <table class="t"><tr><th>Signal</th><th>Count</th><th>After 24h</th><th>After 72h</th></tr>
+    ${tr.map(r => `<tr><td>${r.dir === 'buy' ? '▲ Buy' : '▼ Sell'} ${r.bucket}</td><td>${r.signals}</td><td>${rr(r.r24)}</td><td>${rr(r.r72)}</td></tr>`).join('')}</table>`;
 }
 
 document.addEventListener('click', e => {
   const tab = e.target.closest('[role=tab]');
   if (tab) {
     document.querySelectorAll('[role=tab]').forEach(t => t.setAttribute('aria-selected', t === tab));
-    ['signals', 'market', 'events', 'help'].forEach(id => $('#' + id).hidden = id !== tab.dataset.tab);
+    ['signals', 'market', 'events', 'learning', 'help'].forEach(id => $('#' + id).hidden = id !== tab.dataset.tab);
     return;
   }
   const chip = e.target.closest('.chip');

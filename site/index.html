@@ -18,6 +18,7 @@
     <button role="tab" data-tab="signals" aria-selected="true">Signals</button>
     <button role="tab" data-tab="market">Market</button>
     <button role="tab" data-tab="events">Events</button>
+    <button role="tab" data-tab="learning">Learning</button>
     <button role="tab" data-tab="help">How it works</button>
   </nav>
   <section id="signals">
@@ -33,6 +34,7 @@
     <div id="market-list"></div>
   </section>
   <section id="events" hidden><div id="event-list"></div></section>
+  <section id="learning" hidden><div id="learning-body"></div></section>
   <section id="help" hidden>
     <h2>Reading a signal</h2>
     <dl>
@@ -41,6 +43,9 @@
       <dt>Normal price</dt><dd>The item's own average price over the last 72 hourly snapshots.</dd>
       <dt>Net margin</dt><dd>Gain if you buy at today's price and sell at the normal price, after the auction house cut.</dd>
       <dt>Days of supply</dt><dd>Listed quantity divided by estimated daily sales. Under 1 day means the shelf is nearly empty.</dd>
+      <dt>Expected 24h return</dt><dd>The learned model's forecast of the net return from buying now and selling 24 hours later, after the auction house cut. Shown once the model has data.</dd>
+      <dt>Daily volatility</dt><dd>Typical size of one day's price move for this item. A forecast smaller than this is inside the noise.</dd>
+      <dt>Reversion half-life</dt><dd>Hours this item's price has typically taken to close half of a gap to its normal level.</dd>
       <dt>Max units</dt><dd>The smaller of the units listed within 10% of the floor and a quarter of estimated daily sales. Buying more than this makes you the market.</dd>
     </dl>
     <h2>Signal names</h2>

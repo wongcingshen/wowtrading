@@ -29,7 +29,7 @@ def _wide(hist, col, idx):
     return hist.pivot(index="ts", columns="item", values=col).reindex(idx)
 
 
-def compute(hist, items, cfg, events, sub_groups, now):
+def compute(hist, items, cfg, events, sub_groups, now, weights=None, model_beta=None):
     """Returns (table DataFrame indexed by item, dict of wide frames for charts, meta)."""
     snaps = sorted(hist["ts"].unique())
     n_snap = len(snaps)
@@ -60,17 +60,32 @@ def compute(hist, items, cfg, events, sub_groups, now):
         lq.rolling(W, min_periods=minobs).std().shift(1).clip(lower=0.10)
     sold24 = S.rolling(24, min_periods=6).mean() * 24
 
+    # days of cover = listed quantity / estimated daily sales. The commodity-market
+    # equivalent is the stocks-to-use ratio: low cover means buyers compete for few units.
+    cover = Q / sold24.where(sold24 > 0)
+    lc = np.log(cover.where(cover > 0))
+    zc = (lc - lc.rolling(W, min_periods=minobs).mean().shift(1)) / \
+        lc.rolling(W, min_periods=minobs).std().shift(1).clip(lower=0.15)
+    ret = lp.diff()
+    vol = ret.rolling(W, min_periods=minobs).std() * np.sqrt(24)      # daily volatility of price
+    # speed of mean reversion (Ornstein-Uhlenbeck style): regress the hourly price change
+    # on the previous deviation from normal; half-life = hours for a deviation to halve.
+    dev = (lp - mean)
+    x, y = dev.shift(1).iloc[-W:], ret.iloc[-W:]
+    beta = (x * y).sum() / (x * x).sum().replace(0, np.nan)
+    half_life = (-np.log(2) / np.log1p(beta.clip(-0.99, -1e-4))).where(beta < 0)
+
     last = idx[-1]
     t = pd.DataFrame({
         "price": P.loc[last], "floor": F.loc[last], "qty": Q.loc[last],
         "depth10": D.loc[last], "listings": L.loc[last],
         "z_price": zp.loc[last], "z_supply": zq.loc[last], "mom": mom.loc[last],
         "normal": np.exp(mean.loc[last]), "sold24": sold24.loc[last],
-        "obs": P.notna().sum(),
+        "obs": P.notna().sum(), "vol": vol.loc[last], "half_life": half_life,
     })
     t["chg24"] = P.loc[last] / P.shift(24).loc[last] - 1 if len(idx) > 24 else np.nan
     t["qchg24"] = (Q.loc[last] / Q.shift(24).loc[last].replace(0, np.nan) - 1) if len(idx) > 24 else np.nan
-    t["dos"] = t["qty"] / t["sold24"].where(t["sold24"] > 0)   # days of supply
+    t["dos"] = cover.loc[last]
     t["turnover"] = t["sold24"] * t["price"]
 
     # ---- alternatives: price relative to substitute items -------------------
@@ -85,59 +100,66 @@ def compute(hist, items, cfg, events, sub_groups, now):
             if i in grp.index:
                 grp[i] = "manual|" + g["name"]
     t["group"] = grp
-    t["z_alt"] = np.nan
     t["alt_qty"] = np.nan
+    RZ = pd.DataFrame(np.nan, index=idx, columns=P.columns)
     for name, members in grp.dropna().groupby(grp.dropna()).groups.items():
         members = [m for m in members if m in lp.columns]
         if len(members) < 3:
             continue
         rel = lp[members].sub(lp[members].median(axis=1), axis=0)
-        rz = (rel - rel.rolling(W, min_periods=minobs).mean().shift(1)) / \
+        RZ[members] = (rel - rel.rolling(W, min_periods=minobs).mean().shift(1)) / \
             rel.rolling(W, min_periods=minobs).std().shift(1).clip(lower=0.05)
-        t.loc[members, "z_alt"] = rz.loc[last]
-        tot = Q.loc[last, members].sum()
-        t.loc[members, "alt_qty"] = tot - Q.loc[last, members]
+        t.loc[members, "alt_qty"] = Q.loc[last, members].sum() - Q.loc[last, members]
+    t["z_alt"] = RZ.loc[last]
 
-    # ---- events --------------------------------------------------------------
-    t["event"] = 0.0
+    # ---- events (as a time x item frame, so past events can be learned from) ----
+    E = pd.DataFrame(0.0, index=idx, columns=P.columns)
     t["event_name"] = None
-    today = pd.Timestamp(now).tz_convert("UTC").normalize() if pd.Timestamp(now).tzinfo else pd.Timestamp(now, tz="UTC").normalize()
     for ev in events or []:
-        days = (pd.Timestamp(str(ev["date"]), tz="UTC") - today).days
+        days = np.asarray((pd.Timestamp(str(ev["date"]), tz="UTC") - idx.normalize()).days)
         lead = int(ev.get("lead_days", 14))
-        if not (0 <= days <= lead):
-            continue
+        ramp = np.where((days >= 0) & (days <= lead), (1 - days / (lead + 1)), 0.0) * (1 if ev.get("direction", "up") == "up" else -1)
         aff = ev.get("affects", {})
         ids = set(aff.get("item_ids") or [])
         if not meta.empty:
             m = meta[meta["c"].isin(aff.get("classes") or []) | meta["s"].isin(aff.get("subclasses") or [])]
             ids |= set(m.index)
-        ids = [i for i in ids if i in t.index]
-        ramp = (1 - days / (lead + 1)) * (1 if ev.get("direction", "up") == "up" else -1)
-        better = np.abs(ramp) > t.loc[ids, "event"].abs()
-        sel = [i for i, b in zip(ids, better) if b]
-        t.loc[sel, "event"] = ramp
-        t.loc[sel, "event_name"] = f'{ev["name"]} in {days}d'
+        ids = [i for i in ids if i in E.columns]
+        if not ids or not ramp.any():
+            continue
+        cur = E[ids].values
+        E[ids] = np.where(np.abs(ramp[:, None]) > np.abs(cur), ramp[:, None], cur)
+        if ramp[-1] != 0:
+            t.loc[ids, "event_name"] = f'{ev["name"]} in {int(days[-1])}d'
+    t["event"] = E.loc[last]
 
-    # ---- composite score ------------------------------------------------------
-    w = cfg["weights"]
-    clip = lambda s, k: (s / k).clip(-1, 1).fillna(0)
-    c_rev = clip(-t["z_price"], 3)
-    c_sup = clip(-t["z_supply"], 3)
-    c_mom = clip(t["mom"], 0.10).where(t["z_supply"] < -1, 0)
-    c_alt = clip(-t["z_alt"], 3)
+    # ---- components, each between -1 and +1 ------------------------------------------
+    th = cfg["thresholds"]
+    clip = lambda X, k: (X / k).clip(-1, 1)
+    c_rev, c_sup = clip(-zp, 3), clip(-zq, 3).fillna(0)
+    c_trend = clip(mom, 0.10).fillna(0)                       # plain trend-following, all regimes
+    c_mom = c_trend.where(zq < -1, 0.0)                       # trend only while supply contracts
     # Regime rules. In a squeeze (supply tight, price rising) a price above normal is the
     # squeeze itself, not a sell reason, unless it is overextended (z >= 3). In a flood
     # (supply far above normal) a price below normal is not a bargain.
-    th = cfg["thresholds"]
-    squeeze = (t["z_supply"] <= th["z_supply_tight"]) & (t["mom"] > 0) & (t["z_price"] < 3)
+    squeeze = (zq <= th["z_supply_tight"]) & (mom > 0) & (zp < 3)
     c_rev = c_rev.where(~squeeze, c_rev.clip(lower=0))
-    c_rev = c_rev.where(~(t["z_supply"] >= 1.5), c_rev.clip(upper=0))
+    c_rev = c_rev.where(~(zq >= 1.5), c_rev.clip(upper=0))
+    comps = {"reversion": c_rev.fillna(0), "supply": c_sup, "momentum": c_mom, "trend": c_trend,
+             "cover": clip(-zc, 3).fillna(0), "event": E, "alternatives": clip(-RZ, 3).fillna(0)}
+    valid = zp.notna() & mom.notna()
+
     # Divided by 0.5 so that one fully extreme core component (reversion or supply at
     # 3 standard deviations) alone reaches 60, the default alert threshold.
-    t["score"] = (100 * (w["reversion"] * c_rev + w["supply"] * c_sup + w["momentum"] * c_mom
-                         + w["event"] * t["event"] + w["alternatives"] * c_alt) / 0.5).clip(-100, 100).round(1)
-    t.loc[t["obs"] < minobs, "score"] = np.nan
+    w = weights or cfg["weights"]
+    score = sum(float(w.get(k, 0)) * comps[k].loc[last] for k in comps)
+    t["score"] = (100 * score / 0.5).clip(-100, 100).round(1)
+    t.loc[~valid.loc[last] | (t["obs"] < minobs), "score"] = np.nan
+    if model_beta is not None:   # learned expected net return over the learning horizon
+        t["exp_ret"] = model_beta[0] + sum(model_beta[1][k] * comps[k].loc[last] for k in comps)
+        t.loc[t["score"].isna(), "exp_ret"] = np.nan
+    else:
+        t["exp_ret"] = np.nan
 
     # expected gain if the price returns to its normal level, after the AH cut
     t["net_margin"] = t["normal"] * (1 - cfg["ah_cut"]) / t["price"] - 1
@@ -165,6 +187,6 @@ def compute(hist, items, cfg, events, sub_groups, now):
     # units you could buy without becoming the market: capped by cheap depth and a quarter of daily sales
     t["max_units"] = np.floor(np.minimum(t["depth10"], (t["sold24"] * 0.25).fillna(t["depth10"] * 0.25)))
 
-    wide = {"P": P, "Q": Q}
+    wide = {"P": P, "Q": Q, "L": L, "comps": comps, "valid": valid}
     info = {"n_snapshots": n_snap, "hours_span": len(idx), "last": last, "has_sales": bool(has_sales)}
     return t, wide, info

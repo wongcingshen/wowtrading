@@ -22,6 +22,15 @@ email alerts for major signals.
 
 Optional variable (Variables tab): `DASHBOARD_URL` = your Vercel address, added to alert emails.
 
+## Continuous learning
+
+Each hour the model scores every 24-hour-old observation with what actually happened
+(net return after the auction house cut) and updates its component weights
+(`collector/learner.py`, state in `data/state/model.json`). Learned weights are blended
+with the starting weights in proportion to accumulated evidence. Every signal shown is
+also logged and checked 24 and 72 hours later (`data/state/signal_log.json`); the
+dashboard's Learning tab shows both.
+
 ## Tuning
 
 - `config/settings.yaml`: market selection, weights, thresholds, alert level.
@@ -35,7 +44,7 @@ Optional variable (Variables tab): `DASHBOARD_URL` = your Vercel address, added 
 ## Known limits
 
 - Sales are estimated from listings that disappear between snapshots (a lower bound).
-- Weights and thresholds are starting assumptions; nothing is backtested until history exists.
+- Weights start as assumptions and shift toward learned values as evidence accumulates; signal thresholds are not learned yet.
 - Blizzard's Forever API is new and undocumented. Its auction house list does not state
   which house belongs to which ruleset, so the collector records every candidate house
   until one is confirmed in `config/settings.yaml` (`house_id`).

@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from . import alerts, indicator, items as itemcache, snapshot
+from . import alerts, indicator, items as itemcache, learner, snapshot
 from .blizzard import Blizzard, fetch_house, list_houses, ruleset_of
 
 
@@ -113,7 +113,15 @@ def main(root=Path("."), api=None, now=None):
     print(f"item lookups this run: {n_new}")
 
     hist = indicator.load_history(root / f"data/hourly/h{selected}", now, cfg["lookback_days"])
-    t, wide, info = indicator.compute(hist, icache, cfg, events, subs, now)
+    # pass 1 builds the component history; the learner absorbs newly matured outcomes;
+    # pass 2 scores the market with the updated weights.
+    _, wide, _ = indicator.compute(hist, icache, cfg, events, subs, now)
+    mstate = learner.load(state_dir / "model.json")
+    n_learned = learner.update(mstate, wide, cfg)
+    (state_dir / "model.json").write_text(json.dumps(mstate))
+    w_used, model, beta = learner.weights(mstate, cfg)
+    print(f"learner: +{n_learned} observations, n_eff={model['n_eff']}, learned share={model['alpha']}")
+    t, wide, info = indicator.compute(hist, icache, cfg, events, subs, now, weights=w_used, model_beta=beta)
 
     def name(i):
         e = icache.get(str(i)) or {}
@@ -127,7 +135,8 @@ def main(root=Path("."), api=None, now=None):
              "qty": _num(r["qty"]), "qchg24": _num(r["qchg24"], 4), "z_price": _num(r["z_price"], 2),
              "z_supply": _num(r["z_supply"], 2), "dos": _num(r["dos"], 2), "sold24": _num(r["sold24"], 1),
              "net_margin": _num(r["net_margin"], 4), "max_units": _num(r["max_units"]),
-             "event": r["event_name"], "alt_qty": _num(r["alt_qty"]), "listings": _num(r["listings"])}
+             "event": r["event_name"], "exp_ret": _num(r["exp_ret"], 4), "vol": _num(r["vol"], 4),
+             "half_life": _num(r["half_life"], 1), "alt_qty": _num(r["alt_qty"]), "listings": _num(r["listings"])}
         if series:
             p, q = wide["P"][i].iloc[-72:], wide["Q"][i].iloc[-72:]
             d["series"] = {"t0": p.index[0].isoformat(), "p": [_num(v) for v in p], "q": [_num(v) for v in q]}
@@ -156,7 +165,9 @@ def main(root=Path("."), api=None, now=None):
     evs = [{"name": e["name"], "date": str(e["date"]),
             "days": int((pd.Timestamp(str(e["date"]), tz="UTC") - today).days),
             "lead_days": e.get("lead_days", 14), "source": e.get("source")} for e in events]
-    out = {"meta": meta, "signals": signals, "market": market, "events": evs, "house_check": house_check}
+    log = learner.log_signals(state_dir / "signal_log.json", signals, wide["P"], cfg, now)
+    out = {"meta": meta, "signals": signals, "market": market, "events": evs, "house_check": house_check,
+           "model": model, "track": learner.track_record(log)}
     (root / "site/data").mkdir(parents=True, exist_ok=True)
     (root / "site/data/latest.json").write_text(json.dumps(out, separators=(",", ":")))
 
