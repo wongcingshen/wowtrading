@@ -1,0 +1,8 @@
+{
+  "buildCommand": "",
+  "outputDirectory": "site",
+  "framework": null,
+  "headers": [
+    { "source": "/data/(.*)", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }
+  ]
+}

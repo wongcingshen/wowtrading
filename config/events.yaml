@@ -1,0 +1,14 @@
+# Scheduled game events that change demand. The indicator adds an "event" score
+# to affected items during the lead window before the date.
+# affects: match on item class / subclass names from Blizzard's item data,
+#          and/or explicit item ids.
+events:
+  - name: Raids unlock (Barrow Deeps, Hyjal Summit, Onyxia's Lair)
+    date: 2026-12-09
+    lead_days: 14          # accumulation window before the event
+    direction: up          # demand expected to rise
+    source: Blizzard roadmap (announced date)
+    affects:
+      classes: [Consumable]
+      subclasses: [Herb, Potion, Elixir, Flask, "Food & Drink", Bandage]
+      item_ids: []

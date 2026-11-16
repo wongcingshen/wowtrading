@@ -1,0 +1,8 @@
+# Manual substitute groups: items that do the same job for a buyer.
+# Gear is grouped automatically (same slot, same armour/weapon type, similar level).
+# Add consumable / material groups here by item id once the Forever item list settles.
+# Example:
+# groups:
+#   - name: Healing potions (max level)
+#     item_ids: [13446, 3928]
+groups: []

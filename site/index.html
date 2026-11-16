@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WoW Forever AH Indicator</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="viz-root">
+  <header>
+    <h1>WoW Forever AH Indicator</h1>
+    <p id="status" class="muted">Loading…</p>
+  </header>
+  <div id="banners"></div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="signals" aria-selected="true">Signals</button>
+    <button role="tab" data-tab="market">Market</button>
+    <button role="tab" data-tab="events">Events</button>
+    <button role="tab" data-tab="help">How it works</button>
+  </nav>
+  <section id="signals">
+    <div class="filters">
+      <button class="chip" data-dir="all" aria-pressed="true">All</button>
+      <button class="chip" data-dir="buy" aria-pressed="false">Buy</button>
+      <button class="chip" data-dir="sell" aria-pressed="false">Sell / avoid</button>
+    </div>
+    <div id="signal-list"></div>
+  </section>
+  <section id="market" hidden>
+    <input id="search" type="search" placeholder="Search item" aria-label="Search item">
+    <div id="market-list"></div>
+  </section>
+  <section id="events" hidden><div id="event-list"></div></section>
+  <section id="help" hidden>
+    <h2>Reading a signal</h2>
+    <dl>
+      <dt>Score (−100 to +100)</dt><dd>Positive means buy, negative means sell or avoid. An email is sent when the absolute score reaches the alert threshold on an item that really trades.</dd>
+      <dt>Price</dt><dd>Average price of the cheapest 15% of listed units. It ignores a single mispriced listing.</dd>
+      <dt>Normal price</dt><dd>The item's own average price over the last 72 hourly snapshots.</dd>
+      <dt>Net margin</dt><dd>Gain if you buy at today's price and sell at the normal price, after the auction house cut.</dd>
+      <dt>Days of supply</dt><dd>Listed quantity divided by estimated daily sales. Under 1 day means the shelf is nearly empty.</dd>
+      <dt>Max units</dt><dd>The smaller of the units listed within 10% of the floor and a quarter of estimated daily sales. Buying more than this makes you the market.</dd>
+    </dl>
+    <h2>Signal names</h2>
+    <dl>
+      <dt>Dip</dt><dd>Price at least 2 standard deviations below normal while supply is not flooding, with enough net margin.</dd>
+      <dt>Squeeze</dt><dd>Listed quantity far below normal while price is rising.</dd>
+      <dt>Spike</dt><dd>Price at least 2 standard deviations above normal. Take profit if you hold it.</dd>
+      <dt>Flood</dt><dd>Listed quantity far above normal while price is falling. Avoid.</dd>
+      <dt>Cheap vs alternatives</dt><dd>Price unusually low compared with substitute items (same slot, type and level band).</dd>
+      <dt>Event</dt><dd>A scheduled event that raises demand for this item category is inside its lead window.</dd>
+    </dl>
+    <p class="muted">Sales are estimated from listings that disappear between hourly snapshots, so they are a lower bound. Weights and thresholds are starting assumptions until enough history exists to test them.</p>
+  </section>
+  <footer class="muted">Data from Blizzard's Game Data API, collected hourly. Not affiliated with Blizzard.</footer>
+<div id="tip" class="tip" hidden></div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

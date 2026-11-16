@@ -1,0 +1,45 @@
+# ---- Which market to track -------------------------------------------------
+region: us            # us | eu | kr | tw
+ruleset_id: 1         # 1 PvP, 2 Normal, 3 Roleplay, 15 Roleplay PvP
+faction: Alliance     # Alliance | Horde | Blackwater
+house_id: null        # leave null to auto-detect; set a number to force one auction house
+
+# ---- Costs -----------------------------------------------------------------
+ah_cut: 0.05          # share of the sale price the auction house keeps
+
+# ---- History windows (in hourly snapshots) ----------------------------------
+lookback_days: 14     # how much history the indicator loads
+stat_window: 72       # window for the "normal" price and supply level
+min_obs: 24           # snapshots needed before an item gets a score
+warmup_snapshots: 48  # no email alerts before this many snapshots exist
+
+# ---- Score weights (starting assumptions, to be tuned on real data) ---------
+weights:
+  reversion: 0.30     # price below its own normal level
+  supply: 0.30        # listed quantity below its own normal level
+  momentum: 0.15      # price rising, counted only while supply is contracting
+  event: 0.15         # scheduled event ahead that raises demand for the item
+  alternatives: 0.10  # cheap relative to substitute items
+
+# ---- Named signal thresholds -----------------------------------------------
+thresholds:
+  z_extreme: 2.0          # standard deviations from normal that count as extreme
+  z_supply_tight: -1.5
+  momentum_min: 0.02      # 2% gap between fast and slow price averages
+  min_net_margin: 0.10    # buy signals need >=10% expected gain after the AH cut
+
+# ---- Liquidity gate (item must really trade) --------------------------------
+liquidity:
+  min_listings: 5
+  min_sold_24h: 5         # estimated units sold in the last 24h
+  turnover_top_share: 0.40  # item must be in the top 40% by gold traded
+
+# ---- Email alerts ----------------------------------------------------------
+alerts:
+  score_threshold: 60     # absolute score needed for a "major" alert
+  cooldown_hours: 12      # do not repeat the same item + direction within this time
+  max_items: 10
+
+# ---- Item name lookups -----------------------------------------------------
+item_namespaces: ["static-forever-{region}", "static-classic1x-{region}", "static-{region}"]
+max_item_lookups_per_run: 400
