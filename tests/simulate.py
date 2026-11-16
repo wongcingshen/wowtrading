@@ -1,5 +1,6 @@
 """Offline end-to-end test: runs the real pipeline against a fake Blizzard API
 that simulates an auction house for N hours. Usage: python -m tests.simulate [hours] [outdir]"""
+import os
 import re
 import shutil
 import sys
@@ -97,6 +98,7 @@ def main(hours=100, outdir=None):
     api = FakeApi()
     for _ in range(30):
         api.step()
+    os.environ["FORCE_RUN"] = ""
     t0 = datetime(2026, 11, 20, 0, 5, tzinfo=timezone.utc)
     out = None
     for h in range(hours):

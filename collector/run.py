@@ -74,7 +74,16 @@ def main(root=Path("."), api=None, now=None):
     state_dir, cache_dir = root / "data/state", root / ".cache"
     state_dir.mkdir(parents=True, exist_ok=True)
     cache_dir.mkdir(exist_ok=True)
+    # Two triggers (GitHub's schedule and the external one) can land in the same hour.
+    # A second run minutes after the first would overwrite that hour's sales estimate.
+    last = state_dir / "last_run.json"
+    if last.exists() and os.environ.get("FORCE_RUN") != "true":
+        gap = (now - datetime.fromisoformat(json.loads(last.read_text())["ts"])).total_seconds() / 60
+        if 0 <= gap < 40:
+            print(f"skipped: last snapshot was {gap:.0f} minutes ago")
+            return None
 
+    last.write_text(json.dumps({"ts": now.isoformat()}))
     selected, fetched, hstate = choose_houses(api, cfg, dyn, state_dir / "house.json")
     (state_dir / "house.json").write_text(json.dumps(hstate, indent=1))
     print(f"house {selected} (ambiguous={hstate['ambiguous']}), collecting {list(fetched)}")
