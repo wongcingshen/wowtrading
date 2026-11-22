@@ -5,13 +5,13 @@
   {
    "id": 110,
    "name": "Alliance Auction House",
-   "listings": 229231,
+   "listings": 223202,
    "ruleset": 1
   },
   {
    "id": 111,
    "name": "Alliance Auction House",
-   "listings": 249676,
+   "listings": 236146,
    "ruleset": 1
   },
   {
@@ -23,13 +23,13 @@
   {
    "id": 119,
    "name": "Alliance Auction House",
-   "listings": 65675,
+   "listings": 59618,
    "ruleset": 1
   },
   {
    "id": 123,
    "name": "Alliance Auction House",
-   "listings": 65488,
+   "listings": 58530,
    "ruleset": 1
   }
  ],
